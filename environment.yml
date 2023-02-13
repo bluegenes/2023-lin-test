@@ -1,0 +1,9 @@
+name: 2023-lin-test
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - snakemake=7.22.0
+  - pandas>=1.5.2

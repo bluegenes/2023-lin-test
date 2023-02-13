@@ -1,0 +1,8 @@
+name: smash461
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - sourmash>=4.6.1
