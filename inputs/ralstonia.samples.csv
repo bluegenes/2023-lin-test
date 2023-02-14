@@ -1,2 +1,4 @@
 name,reads
 barcode1_22142,inputs/barcode1_22142.fastq.gz
+barcode3_31543,inputs/barcode3_31543.fastq.gz
+barcode5_36481,inputs/barcode5_36481.fastq.gz
