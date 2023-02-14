@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
   - python=3.10
+  - rust=1.67
   - pip
   - pip:
-    - git+https://github.com/dib-lab/sourmash@lins-v2
+    - git+https://github.com/dib-lab/sourmash@lins-v2#egg=sourmash

@@ -104,8 +104,7 @@ rule tax_metagenome:
     params:
         outd= lambda w: os.path.join(out_dir, f'gather'),
         out_base= lambda w: f'{w.sample}.k{w.ksize}-sc{scaled}.gather',
-    conda: "conf/env/sourmash.yml"
-    #conda: "conf/env/sourmashLIN.yml"
+    conda: "conf/env/sourmashLIN.yml"
     shell:
         """
         mkdir -p {params.outd}
