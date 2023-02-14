@@ -18,8 +18,7 @@ print(ACC)
 
 
 rule all:
-    input: expand("{out_dir}/ralstonia.dna.sc{scaled}.zip", out_dir=out_dir, scaled=[1,5,10,100])
-
+    input: expand("{out_dir}/ralstonia.dna.sc{scaled}.zip", out_dir=out_dir, scaled=[5,10,100])
 
 rule write_fromfile:
     output: "inputs/genomes/ralstonia.fromfile.csv"
