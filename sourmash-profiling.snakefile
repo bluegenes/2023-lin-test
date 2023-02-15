@@ -21,6 +21,12 @@ scaled = config.get("scaled", [1000])
 if not isinstance(scaled, list):
     scaled=[scaled]
 
+threshold_bp = config.get('sourmash_gather_threshold_bp', [50000])
+if not isinstance(threshold_bp, list):
+    threshold_bp=[threshold_bp]
+print(threshold_bp)
+
+
 
 onstart:
     print("------------------------------")
@@ -37,7 +43,7 @@ onerror:
 
 rule all:
     input:
-        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}-sc{scaled}.gather.kreport.txt'), sample=SAMPLES, ks=ksize, scaled=scaled),
+        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}-sc{sc}-thr{thr}.gather.kreport.txt'), sample=SAMPLES, ks=ksize, sc=scaled, thr=threshold_bp),
 #        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}.gather.with-lineages.csv'),sample=SAMPLES, ks=ksize),
 
 
@@ -62,27 +68,31 @@ rule sourmash_sketch_dna:
 rule sourmash_gather:
     input:
         query=os.path.join(out_dir, "reads", "{sample}.dna.sig.zip"),
-        databases = lambda w: search_databases[f"k{w.ksize}"],
+        #databases = lambda w: search_databases[f"k{w.ksize}"],
     output:
-        gather_csv=os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.csv'),
-        gather_txt=os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.txt'),
+        gather_csv=os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.csv'),
+        gather_txt=os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.txt'),
     params:
-        threshold_bp = config.get('sourmash_database_threshold_bp', '50000'),
+        # use threshold as wildcard instead
+        #threshold_bp = config.get('sourmash_database_threshold_bp', '5000'),
+        # since I actually made diff scaled databases for this test set, let's just load 
+        # the exact resolution we need instead of downsampling the lower scaled dbs
+        database = lambda w: [x for x in search_databases[f"k{w.ksize}"] if f".sc{w.scaled}." in x],
     resources:
-        mem_mb=lambda wildcards, attempt: attempt *100000,
+        mem_mb=lambda wildcards, attempt: attempt *10000,
         time=10000,
-        partition="bmh",
-    log: os.path.join(logs_dir, "gather", "{sample}.k{ksize}-sc{scaled}.gather.log")
-    benchmark: os.path.join(benchmarks_dir, "gather", "{sample}.k{ksize}-sc{scaled}.gather.benchmark")
+        partition="bmm",
+    log: os.path.join(logs_dir, "gather", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.log")
+    benchmark: os.path.join(benchmarks_dir, "gather", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.benchmark")
     conda: "conf/env/sourmash.yml"
     shell:
         # touch output to let workflow continue in cases where 0 results are found
         """
-        echo "DB(s): {input.databases}"
-        echo "DB(s): {input.databases}" > {log}
+        echo "DB(s): {params.database}"
+        echo "DB(s): {params.database}" > {log}
 
-        sourmash gather {input.query} {input.databases} --dna --ksize {wildcards.ksize} \
-                 --threshold-bp {params.threshold_bp} --scaled {wildcards.scaled} \
+        sourmash gather {input.query} {params.database} --dna --ksize {wildcards.ksize} \
+                 --threshold-bp {wildcards.thresh} --scaled {wildcards.scaled} \
                  -o {output.gather_csv} > {output.gather_txt} 2>> {log}
         
         touch {output.gather_txt}
@@ -91,26 +101,28 @@ rule sourmash_gather:
 
 rule tax_metagenome:
     input:
-        gather = os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.csv'),
+        gather = os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.csv'),
         lineages = config['database_lineage_files'],
     output:
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.krona.tsv'),
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.summarized.csv'),
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}.gather.kreport.txt'),
+        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.krona.tsv'),
+        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.summarized.csv'),
+        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.kreport.txt'),
     resources:
         mem_mb=lambda wildcards, attempt: attempt *3000,
         partition = "bml",
         time=240,
     params:
         outd= lambda w: os.path.join(out_dir, f'gather'),
-        out_base= lambda w: f'{w.sample}.k{w.ksize}-sc{scaled}.gather',
+        out_base= lambda w: f'{w.sample}.k{w.ksize}-sc{scaled}-thr{w.thresh}.gather',
+    log: os.path.join(logs_dir, "tax", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.tax-metagenome.log")
+    benchmark: os.path.join(benchmarks_dir, "tax", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.tax-metagenome.benchmark")
     conda: "conf/env/sourmashLIN.yml"
     shell:
         """
         mkdir -p {params.outd}
         sourmash tax metagenome -g {input.gather} -t {input.lineages} -o {params.out_base} \
                                 --output-dir {params.outd} --output-format krona csv_summary kreport \
-                                --LIN-taxonomy --LIN-position 19
+                                --LIN-taxonomy --LIN-position 19 2> {log}
         """
 
 #rule tax_annotate:
