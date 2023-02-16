@@ -46,6 +46,7 @@ onerror:
 rule all:
     input:
         expand(os.path.join(out_dir, 'tax', '{sample}.k{ks}-sc{sc}-thr{thr}.gather.lingroup_report.txt'), sample=SAMPLES, ks=ksize, sc=scaled, thr=threshold_bp),
+        expand(os.path.join(out_dir, 'prefetch', '{sample}.k{ks}-sc{sc}.prefetch.csv'), sample=SAMPLES, ks=ksize, sc=scaled),
 #        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}.gather.with-lineages.csv'),sample=SAMPLES, ks=ksize),
 
 
@@ -66,6 +67,41 @@ rule sourmash_sketch_dna:
         sourmash sketch dna {input} -p k=21,k=31,k=51,dna,scaled=5,abund \
                                     --name {wildcards.sample} -o {output} 2> {log}
         """
+
+rule sourmash_prefetch:
+    input:
+        query=os.path.join(out_dir, "reads", "{sample}.dna.sig.zip"),
+        #databases = lambda w: search_databases[f"k{w.ksize}"],
+    output:
+        prefetch_csv=os.path.join(out_dir, 'prefetch', '{sample}.k{ksize}-sc{scaled}.prefetch.csv'),
+        prefetch_txt=os.path.join(out_dir, 'prefetch', '{sample}.k{ksize}-sc{scaled}.prefetch.txt'),
+    params:
+        # use threshold as wildcard instead
+        #threshold_bp = config.get('sourmash_database_threshold_bp', '5000'),
+        # since I actually made diff scaled databases for this test set, let's just load
+        # the exact resolution we need instead of downsampling the lower scaled dbs
+        database = lambda w: [x for x in search_databases[f"k{w.ksize}"] if f".sc{w.scaled}." in x],
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt *10000,
+        time=240,#10000,
+        partition="low2", # bmm
+    log: os.path.join(logs_dir, "gather", "{sample}.k{ksize}-sc{scaled}.prefetch.log")
+    benchmark: os.path.join(benchmarks_dir, "gather", "{sample}.k{ksize}-sc{scaled}.prefetch.benchmark")
+    conda: "conf/env/sourmash.yml"
+    shell:
+        # touch output to let workflow continue in cases where 0 results are found
+        """
+        echo "DB(s): {params.database}"
+        echo "DB(s): {params.database}" > {log}
+
+        sourmash prefetch {input.query} {params.database} --dna --ksize {wildcards.ksize} \
+                 --threshold-bp 0 --scaled {wildcards.scaled} \
+                 -o {output.prefetch_csv} > {output.prefetch_txt} 2>> {log}
+
+        touch {output.prefetch_txt}
+        touch {output.prefetch_csv}
+        """
+
 
 rule sourmash_gather:
     input:
