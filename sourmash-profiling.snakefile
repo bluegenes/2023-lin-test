@@ -64,7 +64,7 @@ rule sourmash_sketch_dna:
     conda: "conf/env/sourmash.yml"
     shell:
         """
-        sourmash sketch dna {input} -p k=21,k=31,k=51,dna,scaled=5,abund \
+        sourmash sketch dna {input} -p k=21,k=31,k=51,dna,scaled=1,abund \
                                     --name {wildcards.sample} -o {output} 2> {log}
         """
 
@@ -118,8 +118,10 @@ rule sourmash_gather:
         database = lambda w: [x for x in search_databases[f"k{w.ksize}"] if f".sc{w.scaled}." in x],
     resources:
         mem_mb=lambda wildcards, attempt: attempt *10000,
-        time=10000,
-        partition="bmm",
+        time=240,#10000,
+        partition="low2", # bmm
+        #time=10000,
+        #partition="bmm",
     log: os.path.join(logs_dir, "gather", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.log")
     benchmark: os.path.join(benchmarks_dir, "gather", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.benchmark")
     conda: "conf/env/sourmash.yml"
@@ -148,7 +150,7 @@ rule tax_metagenome:
         os.path.join(out_dir, 'tax', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.lingroup_report.txt'),
     resources:
         mem_mb=lambda wildcards, attempt: attempt *3000,
-        partition = "bml",
+        partition = "low2",
         time=240,
     params:
         outd= lambda w: os.path.join(out_dir, f'tax'),
