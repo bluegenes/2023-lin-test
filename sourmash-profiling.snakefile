@@ -13,6 +13,8 @@ SAMPLES = sample_info["name"].to_list()
 # set name as index for easy access
 sample_info.set_index('name', inplace=True)
 
+lingroup_csv = config['lingroup_info']
+
 search_databases = config['search_databases'] # must be dictionary
 ksize = config.get("ksize", [51])
 if not isinstance(ksize, list):
@@ -43,7 +45,7 @@ onerror:
 
 rule all:
     input:
-        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}-sc{sc}-thr{thr}.gather.kreport.txt'), sample=SAMPLES, ks=ksize, sc=scaled, thr=threshold_bp),
+        expand(os.path.join(out_dir, 'tax', '{sample}.k{ks}-sc{sc}-thr{thr}.gather.lingroup_report.txt'), sample=SAMPLES, ks=ksize, sc=scaled, thr=threshold_bp),
 #        expand(os.path.join(out_dir, 'gather', '{sample}.k{ks}.gather.with-lineages.csv'),sample=SAMPLES, ks=ksize),
 
 
@@ -103,17 +105,18 @@ rule tax_metagenome:
     input:
         gather = os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.csv'),
         lineages = config['database_lineage_files'],
+        lingroup_csv = config['lingroup_info'],
     output:
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.krona.tsv'),
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.summarized.csv'),
-        os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.kreport.txt'),
+        #os.path.join(out_dir, 'gather', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.krona.tsv'),
+        os.path.join(out_dir, 'tax', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.summarized.csv'),
+        os.path.join(out_dir, 'tax', '{sample}.k{ksize}-sc{scaled}-thr{thresh}.gather.lingroup_report.txt'),
     resources:
         mem_mb=lambda wildcards, attempt: attempt *3000,
         partition = "bml",
         time=240,
     params:
-        outd= lambda w: os.path.join(out_dir, f'gather'),
-        out_base= lambda w: f'{w.sample}.k{w.ksize}-sc{scaled}-thr{w.thresh}.gather',
+        outd= lambda w: os.path.join(out_dir, f'tax'),
+        out_base= lambda w: f'{w.sample}.k{w.ksize}-sc{w.scaled}-thr{w.thresh}.gather',
     log: os.path.join(logs_dir, "tax", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.tax-metagenome.log")
     benchmark: os.path.join(benchmarks_dir, "tax", "{sample}.k{ksize}-sc{scaled}-thr{thresh}.tax-metagenome.benchmark")
     conda: "conf/env/sourmashLIN.yml"
@@ -121,8 +124,9 @@ rule tax_metagenome:
         """
         mkdir -p {params.outd}
         sourmash tax metagenome -g {input.gather} -t {input.lineages} -o {params.out_base} \
-                                --output-dir {params.outd} --output-format krona csv_summary kreport \
-                                --LIN-taxonomy --LIN-position 19 2> {log}
+                                --output-dir {params.outd} --output-format csv_summary LINgroup_report \
+                                --LIN-taxonomy --LINgroups {input.lingroup_csv} \
+                                --fail-on-missing-taxonomy 2> {log}
         """
 
 #rule tax_annotate:
